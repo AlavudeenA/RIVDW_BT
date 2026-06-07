@@ -147,16 +147,30 @@ def _render_tables_view(database_name: str) -> None:
         st.info(UILabels.NO_ENTRIES_FOR_DB)
         return
 
-    # Group by table_name
-    tables: Dict[str, List[Dict[str, Any]]] = {}
+    # Deduplicate by entry id — Qdrant can return the same point more than once
+    # when case-normalised IDs collide, and duplicate widget keys crash Streamlit.
+    seen_ids: set = set()
+    unique_entries: List[Dict[str, Any]] = []
     for entry in all_entries:
-        tables.setdefault(entry.get("table_name", ""), []).append(entry)
+        eid = entry.get("id", "")
+        if eid not in seen_ids:
+            seen_ids.add(eid)
+            unique_entries.append(entry)
 
-    table_names = sorted(tables.keys())
-    st.markdown(f"**{len(table_names)} tables** in `{database_name}`")
+    # Group by lowercased table_name so mixed-case DB names don't create duplicate cards
+    tables: Dict[str, List[Dict[str, Any]]] = {}
+    display_names: Dict[str, str] = {}
+    for entry in unique_entries:
+        raw_name = entry.get("table_name", "")
+        key = raw_name.lower()
+        display_names.setdefault(key, raw_name)
+        tables.setdefault(key, []).append(entry)
 
-    for table_name in table_names:
-        _render_table_card(table_name, tables[table_name], database_name)
+    table_keys = sorted(tables.keys())
+    st.markdown(f"**{len(table_keys)} tables** in `{database_name}`")
+
+    for table_key in table_keys:
+        _render_table_card(display_names[table_key], tables[table_key], database_name)
 
 
 def _render_table_card(
