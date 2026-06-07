@@ -294,18 +294,47 @@ def _batch_enrich_table(
 
 
 def _parse_batch_response(raw: str) -> Dict[str, Any]:
-    """Parse the JSON returned by the batch table LLM call."""
+    """Parse the JSON returned by the batch table LLM call.
+
+    Tries three strategies in order:
+    1. Direct parse (model returned clean JSON)
+    2. Strip markdown code fences (```json ... ```)
+    3. Extract the first {...} block from the response (model added surrounding text)
+    """
     if not raw:
         return {}
+
     cleaned = raw.strip()
-    if cleaned.startswith("```"):
-        lines = cleaned.split("\n")
-        cleaned = "\n".join(lines[1:-1] if lines[-1] == "```" else lines[1:])
+
+    # Strategy 1: direct parse
     try:
         return json.loads(cleaned)
     except json.JSONDecodeError:
-        logger.warning("Could not parse batch LLM response as JSON")
-        return {}
+        pass
+
+    # Strategy 2: strip markdown fences (```json, ```JSON, ``` etc.)
+    if "```" in cleaned:
+        lines = cleaned.split("\n")
+        inner = [
+            line for i, line in enumerate(lines)
+            if not (line.strip().startswith("```") )
+        ]
+        try:
+            return json.loads("\n".join(inner).strip())
+        except json.JSONDecodeError:
+            pass
+
+    # Strategy 3: find the first { and last } and extract whatever is between
+    start = cleaned.find("{")
+    end = cleaned.rfind("}")
+    if start != -1 and end != -1 and end > start:
+        try:
+            return json.loads(cleaned[start : end + 1])
+        except json.JSONDecodeError:
+            pass
+
+    logger.warning("Could not parse batch LLM response as JSON")
+    return {}
 
 
 def _make_table_entry(
