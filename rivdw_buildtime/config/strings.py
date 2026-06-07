@@ -189,7 +189,8 @@ Return a JSON object with keys: description, business_process, related_tables (l
 A business analyst needs to understand a database table and all its columns.
 Write in plain English — no SQL jargon, no technical abbreviations.
 
-Database: {source_db}
+Database: {db_display_name} ({source_db})
+Database context: {db_description}
 Domain: {domain_tag}
 Table: {table_name}
 

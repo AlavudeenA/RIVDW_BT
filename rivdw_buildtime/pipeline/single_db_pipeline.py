@@ -12,6 +12,7 @@ from typing import Any, Callable, Dict, List, Optional
 
 from config.settings import get_settings
 from config.strings import LLMPrompts
+from database.connection_registry import get_registry
 from database.schema_crawler import crawl_database
 from database.sqlite_store import get_sqlite_store
 from glossary.domain_glossary import get_glossary
@@ -46,6 +47,10 @@ def process_database(
     sqlite = get_sqlite_store()
     glossary = get_glossary()
 
+    db_config = get_registry().get_config(database_name)
+    db_display_name = db_config.display_name if db_config else database_name
+    db_description = db_config.description if db_config else ""
+
     raw_entries = crawl_database(database_name)
     if not raw_entries:
         logger.warning("No entries found for database: %s", database_name)
@@ -63,7 +68,7 @@ def process_database(
             progress_fn("start", table_name, f"{len(columns)} columns")
 
         try:
-            entries = _process_one_table(table_name, columns, settings, glossary)
+            entries = _process_one_table(table_name, columns, settings, glossary, db_display_name, db_description)
 
             for entry in entries:
                 # Archive to history first (LLM-generated version)
@@ -107,6 +112,10 @@ def process_single_table_by_name(
     sqlite = get_sqlite_store()
     glossary = get_glossary()
 
+    db_config = get_registry().get_config(database_name)
+    db_display_name = db_config.display_name if db_config else database_name
+    db_description = db_config.description if db_config else ""
+
     raw_entries = crawl_database(database_name)
     table_columns = [r for r in raw_entries if r["table_name"] == table_name]
 
@@ -114,7 +123,7 @@ def process_single_table_by_name(
         logger.warning("Table %s not found in database %s", table_name, database_name)
         return []
 
-    entries = _process_one_table(table_name, table_columns, settings, glossary)
+    entries = _process_one_table(table_name, table_columns, settings, glossary, db_display_name, db_description)
 
     for entry in entries:
         # Archive old version first if it exists
@@ -199,6 +208,8 @@ def _process_one_table(
     raw_columns: List[Dict[str, Any]],
     settings: Any,
     glossary: Any,
+    db_display_name: str = "",
+    db_description: str = "",
 ) -> List[MetadataEntry]:
     """
     Normalise, batch-enrich, and validate all entries for one table.
@@ -207,7 +218,7 @@ def _process_one_table(
     normalised = [_normalise_entry(col) for col in raw_columns]
 
     # One LLM call for the whole table
-    llm_data = _batch_enrich_table(table_name, normalised, settings, glossary)
+    llm_data = _batch_enrich_table(table_name, normalised, settings, glossary, db_display_name, db_description)
 
     filler_phrases = settings.get_filler_phrases()
     known_domains = settings.get_known_domains()
@@ -253,6 +264,8 @@ def _batch_enrich_table(
     normalised_entries: List[MetadataEntry],
     settings: Any,
     glossary: Any,
+    db_display_name: str = "",
+    db_description: str = "",
 ) -> Dict[str, Any]:
     """
     Make one LLM call covering the entire table and return the parsed response dict.
@@ -265,6 +278,8 @@ def _batch_enrich_table(
     first = normalised_entries[0]
     prompt = LLMPrompts.BATCH_TABLE_TEMPLATE.format(
         source_db=first.source_db,
+        db_display_name=db_display_name or first.source_db,
+        db_description=db_description or "No additional context provided.",
         domain_tag=first.domain_tag,
         table_name=table_name,
         column_list=column_lines,
