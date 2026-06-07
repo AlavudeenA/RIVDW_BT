@@ -1,0 +1,31 @@
+# UI
+streamlit==1.45.0
+
+# Pipeline orchestration
+langgraph>=0.2.0
+langchain-core>=0.3.0
+
+# LLM — Groq (primary)
+groq>=0.11.0
+
+# HTTP client for VS Code LM API fallback
+requests>=2.32.0
+
+# Vector store
+qdrant-client>=1.9.0
+
+# Embeddings
+fastembed>=0.3.0
+
+# Database access
+sqlalchemy>=2.0.0
+pyodbc>=5.0.0        # SQL Server via ODBC
+oracledb>=1.4.0      # Oracle (optional — only needed if Oracle DBs are configured; replaces deprecated cx_Oracle)
+
+# Configuration
+pydantic>=2.7.0
+pydantic-settings>=2.3.0
+python-dotenv>=1.0.0
+
+# Standard library backfills / utilities
+typing-extensions>=4.11.0

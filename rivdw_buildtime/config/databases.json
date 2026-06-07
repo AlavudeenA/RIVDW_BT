@@ -1,0 +1,11 @@
+[
+  {
+    "name": "compliance_db",
+    "display_name": "Compliance Database",
+    "db_type": "sqlserver",
+    "schema": "dbo",
+    "domain_tag": "compliance",
+    "owner": "compliance-team@yourcompany.com",
+    "description": "Contains all compliance-related tables, violation tracking, and regulatory reporting data."
+  }
+]
