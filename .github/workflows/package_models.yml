@@ -1,0 +1,54 @@
+name: Package Embedding Models
+
+# Run manually from GitHub → Actions tab → "Package Embedding Models" → Run workflow
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write   # needed to create the release and upload the zip
+
+jobs:
+  package-models:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Download embedding model from HuggingFace
+        run: |
+          pip install "fastembed>=0.3.0"
+          python - <<'EOF'
+          from fastembed import TextEmbedding
+          from pathlib import Path
+
+          cache = Path("fastembed_cache")
+          cache.mkdir(exist_ok=True)
+
+          print("Downloading BAAI/bge-base-en-v1.5 ...")
+          model = TextEmbedding(model_name="BAAI/bge-base-en-v1.5", cache_dir=str(cache))
+          list(model.embed(["warmup"]))   # force full download
+          print("Done.")
+          EOF
+
+      - name: Zip the model cache
+        run: zip -r fastembed_cache.zip fastembed_cache/
+
+      - name: Publish as a GitHub Release asset
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: models-bge-base-en-v1.5
+          name: "Embedding Models — BAAI/bge-base-en-v1.5"
+          body: |
+            Pre-downloaded FastEmbed model cache for offline / restricted-network use.
+
+            **How to use:**
+            1. Download `fastembed_cache.zip` below.
+            2. Extract it into the `rivdw_buildtime/` folder.
+               The result should be `rivdw_buildtime/fastembed_cache/`.
+            3. Run the app — no HuggingFace download will happen.
+          files: fastembed_cache.zip
+          token: ${{ secrets.GITHUB_TOKEN }}
