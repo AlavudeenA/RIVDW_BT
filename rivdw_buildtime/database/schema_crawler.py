@@ -15,19 +15,23 @@ logger = logging.getLogger(__name__)
 # Read-only queries against system catalogs — never touches actual data rows.
 _SQL_SERVER_CATALOG_QUERY = """
 SELECT
+    s.name  AS schema_name,
     t.name  AS table_name,
     c.name  AS column_name,
     ty.name AS data_type,
     c.is_nullable AS nullable
-FROM sys.tables t
+FROM sys.tables  t
+JOIN sys.schemas s  ON t.schema_id = s.schema_id
 JOIN sys.columns c  ON t.object_id = c.object_id
 JOIN sys.types   ty ON c.user_type_id = ty.user_type_id
 WHERE t.is_ms_shipped = 0
+  AND s.name = :schema_name
 ORDER BY t.name, c.column_id
 """
 
 _ORACLE_CATALOG_QUERY = """
 SELECT
+    owner       AS schema_name,
     table_name,
     column_name,
     data_type,
@@ -68,7 +72,10 @@ def _execute_catalog_query(engine: Any, db_config: DatabaseConfig) -> List[Dict[
     """Run the appropriate catalog query and return rows as dicts."""
     with engine.connect() as connection:
         if db_config.db_type == "sqlserver":
-            result = connection.execute(text(_SQL_SERVER_CATALOG_QUERY))
+            result = connection.execute(
+                text(_SQL_SERVER_CATALOG_QUERY),
+                {"schema_name": db_config.schema},
+            )
         elif db_config.db_type == "oracle":
             result = connection.execute(
                 text(_ORACLE_CATALOG_QUERY),
@@ -103,10 +110,13 @@ def _rows_to_entries(
             elif str(raw_nullable).upper() in ("N", "0", "FALSE"):
                 nullable = False
 
+        schema_name = str(row.get("schema_name", db_config.schema or "")).strip()
+
         entries.append({
             "source_db": db_config.name,
             "db_type": db_config.db_type,
             "domain_tag": db_config.domain_tag,
+            "schema_name": schema_name,
             "table_name": table_name,
             "column_name": column_name,
             "data_type": data_type,

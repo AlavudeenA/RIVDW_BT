@@ -15,7 +15,6 @@ from config.strings import LLMPrompts
 from database.connection_registry import get_registry
 from database.schema_crawler import crawl_database
 from database.sqlite_store import get_sqlite_store
-from glossary.domain_glossary import get_glossary
 from models.metadata_entry import MetadataEntry
 from pipeline.nodes.enrich_node import _call_llm
 from pipeline.nodes.guardian_node import _validate_entry
@@ -45,7 +44,6 @@ def process_database(
     settings = get_settings()
     qdrant = get_store()
     sqlite = get_sqlite_store()
-    glossary = get_glossary()
 
     db_config = get_registry().get_config(database_name)
     db_display_name = db_config.display_name if db_config else database_name
@@ -68,7 +66,7 @@ def process_database(
             progress_fn("start", table_name, f"{len(columns)} columns")
 
         try:
-            entries = _process_one_table(table_name, columns, settings, glossary, db_display_name, db_description)
+            entries = _process_one_table(table_name, columns, settings, db_display_name, db_description)
 
             for entry in entries:
                 # Archive to history first (LLM-generated version)
@@ -110,7 +108,6 @@ def process_single_table_by_name(
     settings = get_settings()
     qdrant = get_store()
     sqlite = get_sqlite_store()
-    glossary = get_glossary()
 
     db_config = get_registry().get_config(database_name)
     db_display_name = db_config.display_name if db_config else database_name
@@ -123,7 +120,7 @@ def process_single_table_by_name(
         logger.warning("Table %s not found in database %s", table_name, database_name)
         return []
 
-    entries = _process_one_table(table_name, table_columns, settings, glossary, db_display_name, db_description)
+    entries = _process_one_table(table_name, table_columns, settings, db_display_name, db_description)
 
     for entry in entries:
         # Archive old version first if it exists
@@ -188,16 +185,27 @@ def save_user_edit(
         change_type="user_edit",
     )
 
-    # Update the vector store with the new description + notes
-    return qdrant.update_entry_fields(
-        entry_id,
-        {
-            "description": new_description,
-            "human_notes": human_notes,
-            "human_verified": True,
-            "guardian_status": "approved",
-        },
+    # Re-build the entry so save_entry re-embeds with the updated description + notes
+    from models.metadata_entry import MetadataEntry as _ME
+    updated = _ME(
+        id=entry_id,
+        source_db=existing.get("source_db", ""),
+        db_type=existing.get("db_type", ""),
+        domain_tag=existing.get("domain_tag", ""),
+        schema_name=existing.get("schema_name", ""),
+        table_name=existing.get("table_name", ""),
+        column_name=existing.get("column_name", ""),
+        data_type=existing.get("data_type", ""),
+        description=new_description,
+        business_terms=existing.get("business_terms", []),
+        related_tables=existing.get("related_tables", []),
+        business_process=existing.get("business_process", ""),
+        guardian_status="approved",
+        human_verified=True,
+        human_notes=human_notes,
     )
+    qdrant.save_entry(updated)
+    return True
 
 
 # ── Internal helpers ─────────────────────────────────────────────────────────
@@ -207,7 +215,6 @@ def _process_one_table(
     table_name: str,
     raw_columns: List[Dict[str, Any]],
     settings: Any,
-    glossary: Any,
     db_display_name: str = "",
     db_description: str = "",
 ) -> List[MetadataEntry]:
@@ -218,7 +225,7 @@ def _process_one_table(
     normalised = [_normalise_entry(col) for col in raw_columns]
 
     # One LLM call for the whole table
-    llm_data = _batch_enrich_table(table_name, normalised, settings, glossary, db_display_name, db_description)
+    llm_data = _batch_enrich_table(table_name, normalised, settings, db_display_name, db_description)
 
     filler_phrases = settings.get_filler_phrases()
     known_domains = settings.get_known_domains()
@@ -235,7 +242,6 @@ def _process_one_table(
             min_words=settings.min_description_word_count,
             filler_phrases=filler_phrases,
             known_domains=known_domains,
-            glossary=glossary,
         )
         entry.guardian_status = status
         if reason:
@@ -249,7 +255,6 @@ def _process_one_table(
             min_words=settings.min_description_word_count,
             filler_phrases=filler_phrases,
             known_domains=known_domains,
-            glossary=glossary,
         )
         table_entry.guardian_status = status
         if reason:
@@ -263,7 +268,6 @@ def _batch_enrich_table(
     table_name: str,
     normalised_entries: List[MetadataEntry],
     settings: Any,
-    glossary: Any,
     db_display_name: str = "",
     db_description: str = "",
 ) -> Dict[str, Any]:
@@ -281,6 +285,7 @@ def _batch_enrich_table(
         db_display_name=db_display_name or first.source_db,
         db_description=db_description or "No additional context provided.",
         domain_tag=first.domain_tag,
+        schema_name=first.schema_name or "dbo",
         table_name=table_name,
         column_list=column_lines,
     )
@@ -294,18 +299,47 @@ def _batch_enrich_table(
 
 
 def _parse_batch_response(raw: str) -> Dict[str, Any]:
-    """Parse the JSON returned by the batch table LLM call."""
+    """Parse the JSON returned by the batch table LLM call.
+
+    Tries three strategies in order:
+    1. Direct parse (model returned clean JSON)
+    2. Strip markdown code fences (```json ... ```)
+    3. Extract the first {...} block from the response (model added surrounding text)
+    """
     if not raw:
         return {}
+
     cleaned = raw.strip()
-    if cleaned.startswith("```"):
-        lines = cleaned.split("\n")
-        cleaned = "\n".join(lines[1:-1] if lines[-1] == "```" else lines[1:])
+
+    # Strategy 1: direct parse
     try:
         return json.loads(cleaned)
     except json.JSONDecodeError:
-        logger.warning("Could not parse batch LLM response as JSON")
-        return {}
+        pass
+
+    # Strategy 2: strip markdown fences (```json, ```JSON, ``` etc.)
+    if "```" in cleaned:
+        lines = cleaned.split("\n")
+        inner = [
+            line for i, line in enumerate(lines)
+            if not (line.strip().startswith("```") )
+        ]
+        try:
+            return json.loads("\n".join(inner).strip())
+        except json.JSONDecodeError:
+            pass
+
+    # Strategy 3: find the first { and last } and extract whatever is between
+    start = cleaned.find("{")
+    end = cleaned.rfind("}")
+    if start != -1 and end != -1 and end > start:
+        try:
+            return json.loads(cleaned[start : end + 1])
+        except json.JSONDecodeError:
+            pass
+
+    logger.warning("Could not parse batch LLM response as JSON. Raw (first 500 chars): %s", cleaned[:500])
+    return {}
 
 
 def _make_table_entry(

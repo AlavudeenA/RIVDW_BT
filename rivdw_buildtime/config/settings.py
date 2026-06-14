@@ -46,7 +46,7 @@ class Settings(BaseSettings):
 
     # --- Groq LLM ---
     groq_api_key: str = Field(default="", alias="GROQ_API_KEY")
-    groq_model: str = Field(default="llama3-70b-8192", alias="GROQ_MODEL")
+    groq_model: str = Field(default="llama-3.3-70b-versatile", alias="GROQ_MODEL")
     groq_enabled: bool = Field(default=True, alias="GROQ_ENABLED")
 
     # --- VS Code LM API fallback ---
@@ -58,7 +58,7 @@ class Settings(BaseSettings):
     qdrant_collection: str = Field(default="rivdw_metadata", alias="QDRANT_COLLECTION")
 
     # --- FastEmbed ---
-    embedding_model: str = Field(default="BAAI/bge-small-en-v1.5", alias="EMBEDDING_MODEL")
+    embedding_model: str = Field(default="BAAI/bge-base-en-v1.5", alias="EMBEDDING_MODEL")
 
     # --- SQLite relational store ---
     sqlite_db_path: str = Field(default="./rivdw_app.db", alias="SQLITE_DB_PATH")

@@ -39,6 +39,15 @@ def _clear_fastembed_cache() -> None:
             logger.warning("Cleared corrupted fastembed cache at %s", cache_path)
 
 
+def _model_is_cached() -> bool:
+    """Return True if at least one model subdirectory exists and is non-empty in the local cache."""
+    cache_dir = Path(_local_cache_dir())
+    if not cache_dir.exists():
+        return False
+    model_dirs = [d for d in cache_dir.glob("models--*") if d.is_dir()]
+    return any(True for d in model_dirs for _ in d.iterdir())
+
+
 def _get_model() -> Any:
     """Return the singleton TextEmbedding model, loading from local cache on first call."""
     global _model
@@ -47,7 +56,17 @@ def _get_model() -> Any:
 
         settings = get_settings()
         cache_dir = _local_cache_dir()
-        logger.info("Loading fastembed model: %s (cache: %s)", settings.embedding_model, cache_dir)
+
+        if _model_is_cached():
+            logger.info("Embedding model found in local cache — loading from disk: %s", cache_dir)
+        else:
+            logger.warning(
+                "Embedding model NOT found in local cache at: %s\n"
+                "Downloading from HuggingFace. "
+                "To avoid this at the office, copy the fastembed_cache folder to that path.",
+                cache_dir,
+            )
+
         try:
             _model = TextEmbedding(model_name=settings.embedding_model, cache_dir=cache_dir)
         except ValueError as exc:

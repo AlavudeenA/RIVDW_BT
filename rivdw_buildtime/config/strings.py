@@ -3,59 +3,19 @@
 
 class UILabels:
     APP_TITLE = "RIVDW — Report Intelligence Virtual Data Warehouse"
-    NAV_RUN_PIPELINE = "Run Pipeline"
-    NAV_REVIEW_METADATA = "Review Metadata"
-    NAV_MANAGE_GLOSSARY = "Manage Glossary"
-
-    # Screen 1
-    PAGE_RUN_TITLE = "Run Metadata Ingestion Pipeline"
-    PAGE_RUN_DESCRIPTION = (
-        "This reads your database structure, generates descriptions using AI, "
-        "and stores them for querying."
-    )
-    BTN_RUN_PIPELINE = "Run Pipeline"
-    BTN_DOWNLOAD_REPORT = "Download Summary Report"
-    BTN_GO_TO_REVIEW = "Go to Review"
-
-    STEP_CONNECT = "Connect to databases"
-    STEP_CRAWL = "Read table and column structure"
-    STEP_DIFF = "Find what has changed since last run"
-    STEP_NORMALISE = "Standardise the format"
-    STEP_ENRICH = "Generate AI descriptions"
-    STEP_VALIDATE = "Validate quality"
-    STEP_STORE = "Save to vector store"
-
-    # Screen 2
-    PAGE_REVIEW_TITLE = "Review AI-Generated Metadata"
-    PAGE_REVIEW_DESCRIPTION = (
-        "Review what the AI generated for each table and column. "
-        "Correct anything that is wrong or incomplete."
-    )
-    FILTER_DATABASE = "Filter by database"
-    FILTER_DOMAIN = "Filter by domain"
-    FILTER_STATUS = "Filter by status"
-    SEARCH_PLACEHOLDER = "Search by table or column name"
-    BTN_APPROVE_ALL = "Approve All Visible"
-    BTN_EXPORT_REVIEW = "Export for Review"
-    BTN_APPROVE = "Approve"
-    BTN_REJECT = "Reject"
-    BTN_SAVE_EDITS = "Save edits"
-    BTN_ADD_NOTE = "Add note"
-    BTN_RESET_VECTOR_STORE = "Reset Vector Store"
-
-    STATUS_PENDING = "Pending Review"
-    STATUS_APPROVED = "Approved"
-    STATUS_REJECTED = "Rejected"
-
-    LABEL_ALL = "All"
-    LABEL_TABLE = "Table"
-    LABEL_COLUMN = "Column"
-    LABEL_DATA_TYPE = "Data type"
-    LABEL_AI_DESCRIPTION = "AI-generated description"
-    LABEL_BUSINESS_NOTES = "Business notes"
 
     # Build Metadata screen
     NAV_BUILD_METADATA = "Build Metadata"
+
+    # Query screen
+    NAV_QUERY = "Query"
+    PAGE_QUERY_TITLE = "Query Metadata"
+    PAGE_QUERY_DESCRIPTION = (
+        "Ask a question in plain English to find relevant tables and columns "
+        "across your databases."
+    )
+    QUERY_INPUT_PLACEHOLDER = "e.g. Which tables store employee trade requests for compliance review?"
+    BTN_QUERY_SUBMIT = "Search"
     PAGE_BUILD_TITLE = "Build Metadata"
     PAGE_BUILD_DESCRIPTION = (
         "Select a database, generate AI descriptions for every table and column, "
@@ -81,62 +41,11 @@ class UILabels:
     HISTORY_EMPTY = "No changes recorded yet. Generate or edit metadata to see history here."
     BTN_EXPORT_HISTORY = "Export History CSV"
 
-    # Screen 3
-    PAGE_GLOSSARY_TITLE = "Domain Glossary"
-    PAGE_GLOSSARY_DESCRIPTION = (
-        "Map business terms to database columns. The system uses this to find the right "
-        "data when users ask questions using business language."
-    )
-    BTN_ADD_TERM = "Add New Term"
-    BTN_EDIT = "Edit"
-    BTN_DELETE = "Delete"
-    BTN_EXPORT_GLOSSARY = "Export Glossary"
-    BTN_SAVE = "Save"
-    BTN_CANCEL = "Cancel"
-
-    INPUT_BUSINESS_TERM = "Business term"
-    INPUT_DATABASE = "Database"
-    INPUT_TABLE = "Table"
-    INPUT_COLUMN = "Column"
-    INPUT_DOMAIN = "Domain"
-
-    COL_BUSINESS_TERM = "Business Term"
-    COL_MAPS_TO_TABLE = "Maps to Table"
-    COL_MAPS_TO_COLUMN = "Maps to Column"
-    COL_DOMAIN = "Domain"
-    COL_ADDED_BY = "Added By"
-    COL_DATE = "Date Added"
-
 
 class UIMessages:
-    PIPELINE_RUNNING = "Pipeline is running. Please wait..."
-    PIPELINE_COMPLETE = "Pipeline completed successfully."
-    PIPELINE_FAILED = "The pipeline could not complete. See details below."
-    NO_ENTRIES_FOUND = "No metadata entries found. Run the pipeline first."
-    NO_GLOSSARY_TERMS = "No glossary terms yet. Add your first term using the button above."
-    APPROVE_ALL_CONFIRM = "Are you sure you want to approve all visible entries?"
     SAVING = "Saving..."
     SAVED = "Saved successfully."
-    DELETED = "Deleted successfully."
     EXPORTED = "File ready for download."
-    PIPELINE_SUMMARY = "{tables} tables processed, {columns} columns enriched, {skipped} entries skipped (unchanged)."
-    STEP_RUNNING = "Running..."
-    STEP_DONE = "Done"
-    STEP_FAILED = "Failed"
-    REJECTED_QUEUED = "Entry rejected and queued for re-enrichment on next run."
-
-
-class UIConfirmations:
-    RESET_VECTOR_STORE_MESSAGE = (
-        "This will delete all stored metadata. "
-        "You will need to run the pipeline again. Are you sure?"
-    )
-    RESET_CONFIRM_BTN = "Yes, reset everything"
-    RESET_CANCEL_BTN = "Cancel"
-    DELETE_GLOSSARY_TERM = "Are you sure you want to delete this term?"
-    APPROVE_ALL_VISIBLE = (
-        "This will approve all entries currently shown on screen. Continue?"
-    )
 
 
 class LLMPrompts:
@@ -190,9 +99,10 @@ A business analyst needs to understand a database table and all its columns.
 Write in plain English — no SQL jargon, no technical abbreviations.
 
 Database: {db_display_name} ({source_db})
+Schema: {schema_name}
 Database context: {db_description}
 Domain: {domain_tag}
-Table: {table_name}
+Table: {schema_name}.{table_name}
 
 Columns (name | data type):
 {column_list}

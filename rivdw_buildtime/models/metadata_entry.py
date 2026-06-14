@@ -12,12 +12,13 @@ class MetadataEntry(BaseModel):
     """One enriched metadata record — either a table-level or column-level entry."""
 
     # --- identity ---
-    id: str  # unique key: source_db__table_name__column_name (column_name empty for table entries)
+    id: str  # unique key: source_db__schema__table__column (column empty for table entries)
     source_db: str
     db_type: str  # sqlserver / oracle / postgresql
     domain_tag: str  # compliance / surveillance / employee / brokerage / finance / risk
 
     # --- structure ---
+    schema_name: str = ""  # database schema (e.g. dbo, hr) — stored per-entry to handle multi-schema DBs
     table_name: str
     column_name: str = ""  # empty string when this is a table-level entry
     data_type: str = ""
@@ -62,7 +63,7 @@ class MetadataEntry(BaseModel):
         return len(self.description.split()) if self.description else 0
 
     @classmethod
-    def make_id(cls, source_db: str, table_name: str, column_name: str = "") -> str:
+    def make_id(cls, source_db: str, table_name: str, column_name: str = "", schema_name: str = "") -> str:
         """Build the canonical unique ID for a metadata entry."""
-        parts = [source_db.lower(), table_name.lower(), column_name.lower()]
+        parts = [source_db.lower(), schema_name.lower(), table_name.lower(), column_name.lower()]
         return "__".join(parts)
