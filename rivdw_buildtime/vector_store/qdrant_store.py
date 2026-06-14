@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import logging
 from datetime import datetime, timezone
 from pathlib import Path
@@ -17,8 +18,18 @@ from vector_store.embedding import embed_single
 
 logger = logging.getLogger(__name__)
 
-# BAAI/bge-small-en-v1.5 produces 384-dimensional vectors
-_VECTOR_SIZE = 384
+
+def _point_id(entry_id: str) -> int:
+    """Convert a string entry ID to a stable Qdrant integer point ID.
+
+    Uses SHA-256 so the result is identical across every Python process.
+    Python's built-in hash() is randomised per-process and must NOT be used here.
+    """
+    return int(hashlib.sha256(entry_id.encode()).hexdigest()[:15], 16)
+
+
+# BAAI/bge-base-en-v1.5 produces 768-dimensional vectors
+_VECTOR_SIZE = 768
 
 
 class QdrantStore:
@@ -49,7 +60,10 @@ class QdrantStore:
 
     def save_entry(self, entry: MetadataEntry) -> None:
         """Upsert one MetadataEntry into the vector store using its description as the embed text."""
-        embed_text = entry.description or f"{entry.table_name} {entry.column_name}"
+        parts = [entry.description or f"{entry.table_name} {entry.column_name}"]
+        if entry.human_notes:
+            parts.append(entry.human_notes)
+        embed_text = " ".join(parts)
         vector = self._embed(embed_text)
 
         payload = {
@@ -57,6 +71,7 @@ class QdrantStore:
             "source_db": entry.source_db,
             "db_type": entry.db_type,
             "domain_tag": entry.domain_tag,
+            "schema_name": entry.schema_name,
             "table_name": entry.table_name,
             "column_name": entry.column_name,
             "data_type": entry.data_type,
@@ -71,8 +86,7 @@ class QdrantStore:
             "last_updated": entry.last_updated.isoformat(),
         }
 
-        # Use a deterministic integer point ID derived from the string ID
-        point_id = abs(hash(entry.id)) % (2**63)
+        point_id = _point_id(entry.id)
 
         self._client.upsert(
             collection_name=self._collection_name,
@@ -142,7 +156,7 @@ class QdrantStore:
         Update specific payload fields on the entry matching entry_id.
         Returns True if the entry was found and updated.
         """
-        point_id = abs(hash(entry_id)) % (2**63)
+        point_id = _point_id(entry_id)
 
         fields["last_updated"] = datetime.now(timezone.utc).isoformat()
 
@@ -159,7 +173,7 @@ class QdrantStore:
 
     def get_entry_by_id(self, entry_id: str) -> Optional[Dict[str, Any]]:
         """Fetch one entry by its string entry_id. Returns None if not found."""
-        point_id = abs(hash(entry_id)) % (2**63)
+        point_id = _point_id(entry_id)
         try:
             results = self._client.retrieve(
                 collection_name=self._collection_name,

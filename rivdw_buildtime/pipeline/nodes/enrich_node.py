@@ -12,7 +12,6 @@ from groq import Groq
 
 from config.settings import get_settings
 from config.strings import LLMPrompts, LogMessages
-from glossary.domain_glossary import get_glossary
 from models.metadata_entry import MetadataEntry
 from models.pipeline_state import PipelineState
 
@@ -76,16 +75,13 @@ def _enrich_single_entry(
     entry: MetadataEntry, settings: Any
 ) -> tuple[MetadataEntry, int]:
     """Call the LLM for one entry and return the enriched entry plus token count."""
-    glossary = get_glossary()
-    matching_terms = glossary.find_terms_for_column(entry.table_name, entry.column_name)
-
     prompt = LLMPrompts.ENRICHMENT_TEMPLATE.format(
         source_db=entry.source_db,
         domain_tag=entry.domain_tag,
         table_name=entry.table_name,
         column_name=entry.column_name if entry.column_name else "(table-level)",
         data_type=entry.data_type,
-        business_terms=", ".join(matching_terms) if matching_terms else "none known",
+        business_terms="none known",
     )
 
     llm_response, tokens_used = _call_llm(prompt, settings)
@@ -126,7 +122,7 @@ def _call_groq(prompt: str, settings: Any) -> tuple[str, int]:
             {"role": "user", "content": prompt},
         ],
         temperature=0.2,
-        max_tokens=800,
+        max_tokens=4096,
     )
 
     response_text = completion.choices[0].message.content or ""

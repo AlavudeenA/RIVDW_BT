@@ -75,6 +75,7 @@ def normalise_node(state: PipelineState) -> PipelineState:
 def _normalise_entry(raw: Dict[str, Any]) -> MetadataEntry:
     """Convert one raw crawl dict into a validated MetadataEntry."""
     source_db = str(raw.get("source_db", "")).strip()
+    schema_name = str(raw.get("schema_name", "")).strip().lower()
     table_name = str(raw.get("table_name", "")).strip().lower()
     column_name = str(raw.get("column_name", "")).strip().lower()
     db_type = str(raw.get("db_type", "")).strip().lower()
@@ -82,13 +83,14 @@ def _normalise_entry(raw: Dict[str, Any]) -> MetadataEntry:
     data_type = _normalise_type(str(raw.get("data_type", "")).strip())
     nullable = raw.get("nullable", None)
 
-    entry_id = MetadataEntry.make_id(source_db, table_name, column_name)
+    entry_id = MetadataEntry.make_id(source_db, table_name, column_name, schema_name)
 
     return MetadataEntry(
         id=entry_id,
         source_db=source_db,
         db_type=db_type,
         domain_tag=domain_tag,
+        schema_name=schema_name,
         table_name=table_name,
         column_name=column_name,
         data_type=data_type,

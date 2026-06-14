@@ -3,11 +3,10 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, List, Tuple
+from typing import List, Tuple
 
 from config.settings import get_settings
 from config.strings import LogMessages
-from glossary.domain_glossary import get_glossary
 from models.metadata_entry import MetadataEntry
 from models.pipeline_state import PipelineState
 
@@ -25,7 +24,6 @@ def guardian_node(state: PipelineState) -> PipelineState:
     min_words = settings.min_description_word_count
     filler_phrases = settings.get_filler_phrases()
     known_domains = settings.get_known_domains()
-    glossary = get_glossary()
 
     validated: List[MetadataEntry] = []
 
@@ -35,7 +33,6 @@ def guardian_node(state: PipelineState) -> PipelineState:
             min_words=min_words,
             filler_phrases=filler_phrases,
             known_domains=known_domains,
-            glossary=glossary,
         )
         entry.guardian_status = status
 
@@ -69,7 +66,6 @@ def _validate_entry(
     min_words: int,
     filler_phrases: List[str],
     known_domains: List[str],
-    glossary: Any,
 ) -> Tuple[str, str]:
     """
     Run all quality checks on one entry.
@@ -103,18 +99,5 @@ def _validate_entry(
     for phrase in filler_phrases:
         if phrase.lower() in description_lower:
             return "needs_review", f"Description contains generic filler phrase: '{phrase}'"
-
-    # Soft failure: glossary term applies but is not mentioned in description
-    matching_terms = glossary.find_terms_for_column(entry.table_name, entry.column_name)
-    if matching_terms:
-        all_mentioned = all(
-            term.lower() in description_lower for term in matching_terms
-        )
-        if not all_mentioned:
-            missing_terms = [t for t in matching_terms if t.lower() not in description_lower]
-            return (
-                "needs_review",
-                f"Glossary terms not mentioned in description: {missing_terms}",
-            )
 
     return "approved", ""

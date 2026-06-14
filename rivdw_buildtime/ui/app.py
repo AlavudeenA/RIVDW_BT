@@ -30,27 +30,34 @@ def main() -> None:
             "Navigation",
             options=[
                 UILabels.NAV_BUILD_METADATA,
-                UILabels.NAV_RUN_PIPELINE,
-                UILabels.NAV_REVIEW_METADATA,
-                UILabels.NAV_MANAGE_GLOSSARY,
+                UILabels.NAV_QUERY,
             ],
             label_visibility="collapsed",
         )
+
+        st.markdown("---")
+        with st.expander("Reset Vector Store"):
+            st.caption("Deletes all stored metadata. You will need to re-generate.")
+            if st.button("Reset", type="secondary", use_container_width=True):
+                if st.session_state.get("_reset_confirmed"):
+                    import shutil
+                    from config.settings import get_settings
+                    qdrant_path = Path(get_settings().qdrant_path)
+                    if qdrant_path.exists():
+                        shutil.rmtree(qdrant_path)
+                    st.session_state["_reset_confirmed"] = False
+                    st.success("Vector store deleted. Re-generate metadata to rebuild.")
+                    st.rerun()
+                else:
+                    st.session_state["_reset_confirmed"] = True
+                    st.warning("Click again to confirm.")
 
     if page == UILabels.NAV_BUILD_METADATA:
         from ui.pages.build_metadata import render
         render()
 
-    elif page == UILabels.NAV_RUN_PIPELINE:
-        from ui.pages.run_pipeline import render
-        render()
-
-    elif page == UILabels.NAV_REVIEW_METADATA:
-        from ui.pages.review_metadata import render
-        render()
-
-    elif page == UILabels.NAV_MANAGE_GLOSSARY:
-        from ui.pages.manage_glossary import render
+    elif page == UILabels.NAV_QUERY:
+        from ui.pages.query import render
         render()
 
 
